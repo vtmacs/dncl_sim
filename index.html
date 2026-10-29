@@ -1,0 +1,80 @@
+<!doctype html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>DNCL シミュレーター</title>
+<link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+<header class="topbar">
+  <h1>DNCL シミュレーター</h1>
+  <label for="mode">言語</label>
+  <select id="mode" aria-label="言語の選択">
+    <option value="dncl2">DNCL2（共通テスト「情報Ⅰ」）</option>
+    <option value="dncl">DNCL（旧センター試験「情報関係基礎」）</option>
+  </select>
+  <label for="sample">サンプル</label>
+  <select id="sample" aria-label="サンプルプログラム"></select>
+  <span class="spacer"></span>
+  <a href="manual.html" target="_blank" rel="noopener">マニュアルを開く</a>
+</header>
+
+<main class="layout">
+  <div class="col">
+    <section class="panel editor-panel">
+      <div class="panel-head">
+        <strong>プログラム</strong>
+        <div class="symbols" id="symbols" aria-label="記号の入力"></div>
+      </div>
+      <div class="editor" id="editor">
+        <div class="gutter" id="gutter" aria-hidden="true">1</div>
+        <div class="code-wrap">
+          <div class="hl" id="hl"></div>
+          <textarea id="code" spellcheck="false" autocapitalize="off" autocomplete="off" aria-label="プログラム"></textarea>
+        </div>
+      </div>
+    </section>
+    <div class="controls">
+      <button class="btn primary" id="btn-run" title="Ctrl+Enter">▶ 実行</button>
+      <button class="btn" id="btn-step" title="F10">ステップ</button>
+      <button class="btn" id="btn-stop" disabled>■ 停止</button>
+      <label for="speed" style="font-size:13px;color:var(--muted)">速さ</label>
+      <select id="speed" aria-label="実行の速さ">
+        <option value="0">最速</option>
+        <option value="20">速い</option>
+        <option value="150">普通</option>
+        <option value="600">ゆっくり</option>
+      </select>
+      <span class="status" id="status">準備完了</span>
+    </div>
+  </div>
+
+  <div class="col">
+    <section class="panel out-panel">
+      <div class="panel-head">
+        <strong>出力</strong>
+        <span class="spacer"></span>
+        <button class="btn" id="btn-clear">消去</button>
+      </div>
+      <pre class="output" id="output" aria-live="polite"></pre>
+    </section>
+    <section class="panel vars-panel">
+      <div class="panel-head"><strong>変数</strong><span id="callstack"></span></div>
+      <div class="vars" id="vars"><div class="empty">実行すると変数の値がここに表示されます</div></div>
+    </section>
+    <section class="panel input-panel">
+      <div class="panel-head">
+        <strong>入力</strong>
+        <span>1 行に 1 つ。<code>入力()</code> や <code>外部からの入力</code> で上から順に読まれます</span>
+      </div>
+      <textarea id="inputs" spellcheck="false" aria-label="入力データ"></textarea>
+    </section>
+  </div>
+</main>
+
+<script src="js/dncl.js"></script>
+<script src="js/samples.js"></script>
+<script src="js/app.js"></script>
+</body>
+</html>

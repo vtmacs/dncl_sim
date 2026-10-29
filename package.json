@@ -1,0 +1,9 @@
+{
+  "name": "dncl-sim",
+  "version": "1.0.0",
+  "private": true,
+  "description": "DNCL / DNCL2 (大学入試の手順記述言語) シミュレーター",
+  "scripts": {
+    "test": "node test/test.js"
+  }
+}
