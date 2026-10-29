@@ -19,14 +19,15 @@
 
   const SYMBOLS = {
     dncl2: [
-      ['│', '縦線（字下げ）'], ['⎿', 'ブロックの最後の行'], ['==', '等しい'], ['!=', '等しくない'],
+      ['｜', '縦線（字下げ）'], ['⎿', '制御文の終わり'], ['==', '等しい'], ['!=', '等しくない'],
       ['<=', '以下'], ['>=', '以上'], ['÷', '整数の商'], ['%', '余り'], ['**', 'べき乗'],
-      ['表示する()', '表示文'], ['要素数()', '配列の要素数'],
+      ['表示する()', '表示文'], ['要素数()', '配列の要素数'], ['【外部からの入力】', '外部からの入力'],
     ],
     dncl: [
       ['←', '代入'], ['｜', '縦線（字下げ）'], ['＝', '等しい'], ['≠', '等しくない'], ['≦', '以下'],
       ['≧', '以上'], ['×', '掛け算'], ['÷', '整数の商'], ['％', '余り'], ['，', '読点'],
       ['を表示する', '表示文'], ['を実行する', '分岐の終わり'], ['を繰り返す', '繰り返しの終わり'],
+      ['【外部からの入力】', '外部からの入力'],
     ],
   };
 
@@ -140,7 +141,7 @@
       const opensBlock = mode === 'dncl2'
         ? /[:：]$/.test(trimmed)
         : /(ならば|そうでなければ|の間[，,、]|ながら[，,、]|^繰り返し[，,、]?)$/.test(trimmed);
-      if (opensBlock) prefix += mode === 'dncl2' ? '│ ' : '｜ ';
+      if (opensBlock) prefix += '｜ ';
       e.preventDefault();
       insertText('\n' + prefix);
     }
@@ -195,7 +196,8 @@
     renderSymbols();
     renderSamples();
     const saved = code !== undefined ? code : load(mode);
-    setCode(saved !== null && saved !== undefined ? saved : DNCL_SAMPLES[mode][0].code.join('\n'));
+    const first = DNCL_SAMPLES[mode].find(x => x.id === 'sum') || DNCL_SAMPLES[mode][0];
+    setCode(saved !== null && saved !== undefined ? saved : first.code.join('\n'));
     if (code !== undefined) save();
   }
 

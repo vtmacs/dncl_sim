@@ -78,6 +78,7 @@
         <li><a href="#d1-print">表示文</a></li>
         <li><a href="#d1-if">条件分岐</a></li>
         <li><a href="#d1-loop">繰り返し</a></li>
+        <li><a href="#d1-func">関数の定義</a></li>
       </ol>
     </li>
     <li><a href="#compare">5. DNCL と DNCL2 の対照表</a></li>
@@ -101,9 +102,16 @@
   <tr><td>DNCL</td><td>大学入試センター試験・共通テスト「情報関係基礎」</td><td><code>x ← 3</code>、<code>x を表示する</code>、<code>を実行する</code>・<code>を繰り返す</code> でブロックを閉じる。</td></tr>
 </table></div>
 <p>画面上部の「言語」で切り替えます。どちらの言語で書いたプログラムも、言語ごとに別々にブラウザへ自動保存されます。</p>
+<div class="note">
+  <strong>もとにした資料</strong>（いずれも大学入試センター公表）
+  <ul style="margin:4px 0 0">
+    <li>DNCL2：「令和７年度大学入学共通テスト 試作問題『情報』の概要」の「５．共通テスト用プログラム表記の例示」</li>
+    <li>DNCL：「共通テスト手順記述標準言語(DNCL)の説明」（2022 年 1 月）</li>
+  </ul>
+</div>
 <div class="note warn">
   <strong>仕様についての注意</strong><br>
-  「DNCL2」は、大学入試センターが公開している「共通テスト用プログラム表記」の通称です。正式な文法定義書は公開されていないため、このシミュレーターは公開されている説明資料と過去の問題・試作問題の書き方をもとに文法を決めています。実際の問題文では、その問題の中でだけ使う関数や書き方が説明されることがあります。そのような場合は問題文の説明が優先されます。
+  「DNCL2」は「共通テスト用プログラム表記」の通称です。この表記は例示の形で公開されているだけで、細かい文法の定義はありません。このシミュレーターでは、例示から読み取れない部分を DNCL の説明資料や Python に近い動きで補っています（<a href="#details">8. 細かい動作の決まり</a>）。また、どちらの資料にも「問題文の記述を簡潔にするなどの理由で、この説明文書の記述内容に従わない形式で出題することもある」とあります。実際の問題では、問題文の説明が優先されます。
 </div>
 
 <!-- ============================================================ -->
@@ -148,15 +156,16 @@ x = 1, y = 2, z = x + y
   <li><code>=</code> の右辺の値を左辺の変数（配列の要素）に代入します。</li>
   <li><code>,</code> で区切ると 1 行に複数の代入文を書けます。左から順に実行されます。</li>
   <li>配列全体には <code>[ ]</code> で値を並べて代入します。<code>{ }</code> でも構いません。</li>
+  <li><code>nyuryoku = 【外部からの入力】</code> で外部から入力された値を代入します（<a href="#usage">「入力」欄</a>から読み込みます）。</li>
 </ul>
 <p>次の書き方もできます。</p>
-<div class="ex" data-mode="dncl2"><pre>Tokuten のすべての要素に 0 を代入する
+<div class="ex" data-mode="dncl2"><pre>Tokuten のすべての値を 0 にする
 kosu = 5
 kosu を 1 増やす
 kosu を 2 減らす
 Tokuten[3] を 10 増やす
 表示する(kosu, " ", Tokuten[3], " ", Tokuten[99])</pre></div>
-<p><code>〜のすべての要素に 0 を代入する</code> を使うと、それまで値を入れていない要素も 0 として読めるようになります（配列の大きさを決めずに数え上げなどに使えます）。</p>
+<p><code>Tokuten のすべての値を 0 にする</code> で配列のすべての要素を 0 にします（DNCL の書き方の <code>Tokuten のすべての要素に 0 を代入する</code> も使えます）。この文を使うと、それまで値を入れていない要素も 0 として読めるようになります（配列の大きさを決めずに数え上げなどに使えます）。</p>
 
 <h3 id="d2-op">演算子</h3>
 <div class="tbl-wrap"><table class="t">
@@ -253,7 +262,7 @@ x &gt; 10 になるまで繰り返す
 <ul>
   <li>縦線の記号は <code>│ | ｜ ⎿ └ ∟</code> のどれでも構いません。縦線も空白も「字下げ」として数えます。</li>
   <li>同じブロックの行は同じだけ字下げしてください。</li>
-  <li>行頭の <code>(01)</code> のような行番号は無視されます。試験問題のプログラムをそのまま入力できます。</li>
+  <li>行頭の <code>( 1 )</code> や <code>(01)</code> のような行番号は無視されます。試験問題のプログラムをそのまま入力できます。行番号を付けるときは、字下げを縦線で表してください（行番号の後の空白の幅は行によって違ってもかまいません）。</li>
 </ul>
 <div class="ex" data-mode="dncl2"><pre>(01) Kouka = [500, 100, 50, 10, 5, 1]
 (02) kingaku = 1768, maisu = 0, nokori = kingaku
@@ -264,26 +273,41 @@ x &gt; 10 になるまで繰り返す
 
 <!-- ============================================================ -->
 <h2 id="dncl">4. DNCL（旧センター試験「情報関係基礎」）</h2>
-<p>DNCL は、ブロックを「終わりの言葉」で閉じる書き方です。字下げや縦線 <code>｜</code> は読みやすくするためのもので、意味は持ちません。読点は <code>，</code>（全角コンマ）が正式ですが、<code>、</code> や <code>,</code> でも構いません。</p>
+<p>DNCL は、ブロックを「終わりの言葉」で閉じる書き方です。字下げや縦線 <code>｜</code> は読みやすくするためのもので、意味は持ちません（説明資料にも「改行位置によって実行結果が変わらない」とあります）。読点は <code>，</code>（全角コンマ）が正式ですが、<code>、</code> や <code>,</code> でも構いません。</p>
+<ul>
+  <li>変数名は英字で始まる英数字と <code>_</code> の並びです。小文字で始まる変数は通常の変数、大文字で始まる変数は配列、すべて大文字の変数は実行中に変化しない値（定数）を表すのが決まりです（シミュレーターはこの決まりを検査しません）。</li>
+  <li>添字は 0 以上の整数です（問題によっては 1 以上の添字だけを使います）。二次元配列は <code>Gyoretu[3，2]</code> のように添字を <code>，</code> で区切ります。</li>
+  <li>文字列は <code>「見つかりました」</code> または <code>"It was found."</code> のように囲みます。</li>
+</ul>
 
 <h3 id="d1-basic">変数・代入・演算子</h3>
 <div class="ex" data-mode="dncl"><pre>kosu ← 3
 kosu ← kosu ＋ 1
 Tokuten ← {87, 45, 72, 100}
 x ← 7，y ← 2
-Tokuten のすべての値を 0 にする
-x × y と " " と x ÷ y と " " と x ％ y を表示する</pre></div>
+kosu を 1 増やす
+x を y 減らす
+Kazu のすべての要素に 0 を代入する
+x × y と " " と x / y と " " と x ÷ y と " " と x ％ y と " " と Kazu[3] を表示する</pre></div>
 <ul>
   <li>代入は <code>←</code> を使います。<code>=</code> は「等しい」という比較になります。</li>
-  <li>配列は <code>{ }</code> で値を並べて作れます。添字は 0 から始まります。</li>
-  <li><code>Tokuten のすべての値を 0 にする</code> で配列のすべての要素を 0 にします。</li>
+  <li><code>，</code> で区切ると複数の代入文を横に並べられます（左から順に実行）。</li>
+  <li>配列は <code>{ }</code> で値を並べて作れます。<code>B ← A</code> のように配列を代入すると、B の内容が A の内容に置き換わります（A の複製になります）。</li>
+  <li><code>Tokuten のすべての要素に 0 を代入する</code> で配列のすべての要素を 0 にします。</li>
+  <li><code>kosu を 1 増やす</code> は <code>kosu ← kosu ＋ 1</code>、<code>saihu を syuppi 減らす</code> は <code>saihu ← saihu － syuppi</code> と同じです。</li>
+  <li><code>x ← 【外部からの入力】</code> で外部から入力された値を代入します。</li>
 </ul>
 <div class="tbl-wrap"><table class="t">
   <tr><th>種類</th><th>書き方</th><th>意味</th></tr>
   <tr><td>算術</td><td><code>＋　−　×　/　÷　％</code></td><td>足す、引く、掛ける、割る（小数まで）、商の整数部分、余り。<code>+ - *</code> なども使えます。</td></tr>
-  <tr><td>比較</td><td><code>＝　≠　＞　≧　＜　≦</code></td><td>等しい、等しくない、より大きい、以上、より小さい、以下</td></tr>
-  <tr><td>論理</td><td><code>かつ　または　でない</code></td><td>例：<code>x ＞ 0 かつ x ＜ 10</code>、<code>(x ＝ 0) でない</code></td></tr>
+  <tr><td>比較</td><td><code>＝　≠　＞　≧　＜　≦</code></td><td>等しい、等しくない、より大きい、以上、より小さい、以下。文字列は <code>＝</code> と <code>≠</code> で比較できます。</td></tr>
+  <tr><td>論理</td><td><code>かつ　または　でない</code></td><td>例：<code>kosu ≧ 12 かつ kosu ≦ 27</code>、<code>kosu ＞ 75 でない</code></td></tr>
 </table></div>
+<p><code>×　/　÷　％</code> は <code>＋　－</code> より先に計算され、それ以外は左から順に計算されます。</p>
+<div class="note"><strong>論理演算子には優先順位がありません。</strong>左側の論理演算が先に計算されます（DNCL2 の <code>and</code>・<code>or</code>・<code>not</code> とは違います）。たとえば <code>kosu ＞ 12 かつ kosu ＜ 27 でない</code> は <code>(kosu ＞ 12 かつ kosu ＜ 27) でない</code> と同じで、<code>kosu ＞ 12 かつ (kosu ＜ 27 でない)</code> とは異なります。</div>
+<div class="ex" data-mode="dncl"><pre>kosu ← 30
+もし kosu ＞ 12 かつ kosu ＜ 27 でない ならば "A: 真" を表示する を実行する
+もし kosu ＞ 12 かつ (kosu ＜ 27 でない) ならば "B: 真" を表示する を実行する</pre></div>
 <p>全角の数字・英字・記号はすべて半角と同じに扱います。</p>
 
 <h3 id="d1-print">表示文</h3>
@@ -293,7 +317,7 @@ kosu と "個見つかった" を表示する
 "答えは" と kosu × 2 と "です" を表示する
 "改行しない" を改行なしで表示する
 改行を表示する</pre></div>
-<p>表示する値を <code>と</code> でつなぎます。値は間を空けずにつなげて表示され、最後に改行します。</p>
+<p>表示する値を <code>と</code> でつなぎ、最後に <code>を表示する</code> と書きます。値は間を空けずにつなげて表示され、最後に改行します。たとえば <code>"(" と x と "，" と y と ")" を表示する</code> は x が 5、y が −1 のとき <code>(5，-1)</code> と表示します。</p>
 
 <h3 id="d1-if">条件分岐</h3>
 <div class="ex" data-mode="dncl"><pre>x ← 5
@@ -307,8 +331,15 @@ kosu と "個見つかった" を表示する
 <ul>
   <li>ブロックは <code>を実行する</code> で閉じます。<code>を実行し，そうでなければ</code> の後に、条件が成り立たないときの処理を書きます。</li>
   <li><code>を実行し，そうでなくもし 〈条件〉 ならば</code> で条件を続けられます。</li>
-  <li>1 行で <code>もし 〈条件〉 ならば 〈文〉 を実行し，そうでなければ 〈文〉 を実行する</code> とも書けます。</li>
+  <li>処理が 1 行で書ける場合は、全体を 1 行で書くことも、<code>を実行し，</code> の後で改行して続けることもできます。</li>
 </ul>
+<div class="ex" data-mode="dncl"><pre>x ← 3，y ← 5
+もし x ＜ 3 ならば x ← x ＋ 1 を実行し，
+そうでなければ x ← x － 1 を実行する
+もし x ＝ 3 ならば x ← x ＋ 1 を実行し，
+そうでなくもし y ＞ 2 ならば y ← y ＋ 1 を実行し，
+そうでなければ y ← y － 1 を実行する
+x と "，" と y を表示する</pre></div>
 
 <h3 id="d1-loop">繰り返し</h3>
 <p><strong>前判定（条件繰り返し）</strong></p>
@@ -330,6 +361,19 @@ i を 1 から 10 まで 1 ずつ増やしながら，
 を繰り返す
 goukei を表示する
 i を 5 から 1 まで 2 ずつ減らしながら，i を表示する を繰り返す</pre></div>
+<p>順次繰り返しは次の手順で実行されます。(1) 〈変数〉に〈初期値〉を代入する。(2) 〈変数〉の値が〈終了値〉より大きければ終わる（「減らしながら」なら小さければ終わる）。(3) 〈処理〉を実行し、〈変数〉に〈差分〉を加えて (2) に戻る。</p>
+
+<h3 id="d1-func">関数の定義</h3>
+<p>DNCL では、新しい関数を次のように定義できます。定義した関数は、用意された関数と同じように呼び出せます。</p>
+<div class="ex" data-mode="dncl"><pre>関数 和を表示する(n) を
+｜ wa ← 0
+｜ i を 1 から n まで 1 ずつ増やしながら，
+｜ ｜ wa ← wa ＋ i
+｜ を繰り返す
+｜ wa を表示する
+と定義する
+
+和を表示する(10)</pre></div>
 
 <!-- ============================================================ -->
 <h2 id="compare">5. DNCL と DNCL2 の対照表</h2>
@@ -337,37 +381,45 @@ i を 5 から 1 まで 2 ずつ減らしながら，i を表示する を繰り
   <tr><th>内容</th><th>DNCL2（情報Ⅰ）</th><th>DNCL（情報関係基礎）</th></tr>
   <tr><td>代入</td><td><code>x = 1</code></td><td><code>x ← 1</code></td></tr>
   <tr><td>配列の作成</td><td><code>A = [1, 2, 3]</code></td><td><code>A ← {1, 2, 3}</code></td></tr>
-  <tr><td>全要素の初期化</td><td><code>A のすべての要素に 0 を代入する</code></td><td><code>A のすべての値を 0 にする</code></td></tr>
+  <tr><td>全要素の初期化</td><td><code>A のすべての値を 0 にする</code></td><td><code>A のすべての要素に 0 を代入する</code></td></tr>
+  <tr><td>外部からの入力</td><td><code>x = 【外部からの入力】</code></td><td><code>x ← 【外部からの入力】</code></td></tr>
   <tr><td>等しい／等しくない</td><td><code>==</code> ／ <code>!=</code></td><td><code>＝</code> ／ <code>≠</code></td></tr>
   <tr><td>以上／以下</td><td><code>&gt;=</code> ／ <code>&lt;=</code></td><td><code>≧</code> ／ <code>≦</code></td></tr>
   <tr><td>掛け算</td><td><code>*</code></td><td><code>×</code></td></tr>
   <tr><td>べき乗</td><td><code>**</code></td><td>（なし。<code>**</code> は使えます）</td></tr>
-  <tr><td>論理演算</td><td><code>and　or　not</code></td><td><code>かつ　または　でない</code></td></tr>
+  <tr><td>論理演算</td><td><code>and　or　not</code>（優先順位は <code>not</code> → <code>and</code> → <code>or</code>）</td><td><code>かつ　または　でない</code>（優先順位なし。左から順に計算）</td></tr>
   <tr><td>表示</td><td><code>表示する(x, "個")</code></td><td><code>x と "個" を表示する</code></td></tr>
   <tr><td>条件分岐</td><td><code>もし … ならば:</code><br><code>そうでなくもし … ならば:</code><br><code>そうでなければ:</code></td><td><code>もし … ならば</code><br><code>を実行し，そうでなくもし … ならば</code><br><code>を実行し，そうでなければ</code><br><code>を実行する</code></td></tr>
   <tr><td>条件繰り返し</td><td><code>… の間繰り返す:</code></td><td><code>… の間，</code> 〜 <code>を繰り返す</code></td></tr>
   <tr><td>後判定</td><td><code>繰り返す:</code> 〜 <code>… になるまで繰り返す</code>（拡張）</td><td><code>繰り返し，</code> 〜 <code>を，… になるまで実行する</code></td></tr>
   <tr><td>順次繰り返し</td><td><code>i を 1 から 9 まで 1 ずつ増やしながら繰り返す:</code></td><td><code>i を 1 から 9 まで 1 ずつ増やしながら，</code> 〜 <code>を繰り返す</code></td></tr>
-  <tr><td>ブロック</td><td>字下げ（縦線 <code>│ ⎿</code>）</td><td>終わりの言葉（字下げは飾り）</td></tr>
+  <tr><td>ブロック</td><td>字下げ（縦線 <code>｜ ⎿</code>）</td><td>終わりの言葉（字下げは飾り）</td></tr>
+  <tr><td>関数の定義</td><td>（なし。シミュレーターの拡張で <code>関数 f(x):</code>）</td><td><code>関数 f(x) を</code> 〜 <code>と定義する</code></td></tr>
+  <tr><td>コメント</td><td><code># 〜</code></td><td>（なし。シミュレーターでは <code>#</code> が使えます）</td></tr>
 </table></div>
-<p>なお、どちらの言語でも <code>kosu を 1 増やす</code>、<code>表示する(x)</code>、<code>x を表示する</code>、関数呼び出しは使えます。</p>
+<p>なお、どちらの言語でも <code>kosu を 1 増やす</code>、<code>表示する(x)</code>、<code>x を表示する</code>、両方の初期化の書き方、関数呼び出しは使えます。</p>
 
 <!-- ============================================================ -->
 <h2 id="funcs">6. 関数</h2>
 <h3>組み込み関数</h3>
+<p>説明資料には「『表示する』関数以外は基本的に問題中に説明あり」（DNCL2）、「関数の動作は、問題文の中で定義されます」（DNCL）とあります。シミュレーターでは、資料に例として出てくる関数を用意しています。どちらの言語でも使えます。</p>
 <div class="tbl-wrap"><table class="t">
-  <tr><th>関数</th><th>説明</th><th>例</th></tr>
-  <tr><td><code>要素数(配列)</code></td><td>配列の要素の個数（文字列なら文字数）</td><td><code>要素数([3, 5, 7])</code> → 3</td></tr>
-  <tr><td><code>整数(x)</code></td><td>x の小数点以下を切り捨てた整数</td><td><code>整数(3.7)</code> → 3</td></tr>
-  <tr><td><code>乱数()</code></td><td>0 以上 1 未満のランダムな小数</td><td><code>整数(乱数() * 6) + 1</code> → 1〜6</td></tr>
-  <tr><td><code>二進(x)</code></td><td>0 以上の整数 x を 2 進数で表した文字列</td><td><code>二進(10)</code> → "1010"</td></tr>
-  <tr><td><code>二進で表示する(x)</code></td><td>x を 2 進数で表示する（値は返さない）</td><td><code>二進で表示する(5)</code> → 101 と表示</td></tr>
-  <tr><td><code>表示する(…)</code></td><td>表示文（値は返さない）</td><td></td></tr>
+  <tr><th>関数</th><th>説明</th><th>例</th><th>資料</th></tr>
+  <tr><td><code>表示する(…)</code></td><td>カンマ区切りで文字列や数値を連結して表示する（値は返さない）</td><td><code>表示する(Kamoku[i], "の得点は", Tensu[i], "です")</code></td><td>DNCL2</td></tr>
+  <tr><td><code>要素数(配列)</code></td><td>配列の要素の個数（文字列なら文字数）</td><td><code>要素数([10, 20, 30])</code> → 3</td><td>DNCL2</td></tr>
+  <tr><td><code>整数(x)</code></td><td>x の小数点以下を切り捨てた整数</td><td><code>整数(3.7)</code> → 3</td><td>DNCL2</td></tr>
+  <tr><td><code>乱数()</code></td><td>0 以上 1 未満のランダムな小数</td><td><code>整数(乱数() * 6) + 1</code> → 1〜6</td><td>DNCL2</td></tr>
+  <tr><td><code>乱数(m, n)</code></td><td>m 以上 n 以下の整数をランダムに一つ返す</td><td><code>乱数(1, 6)</code> → 1〜6</td><td>DNCL</td></tr>
+  <tr><td><code>二乗(x)</code></td><td>x の二乗</td><td><code>二乗(3)</code> → 9</td><td>DNCL</td></tr>
+  <tr><td><code>べき乗(m, n)</code></td><td>m の n 乗</td><td><code>べき乗(2, 10)</code> → 1024</td><td>DNCL</td></tr>
+  <tr><td><code>奇数(n)</code></td><td>n が奇数なら真、そうでなければ偽</td><td><code>奇数(7)</code> → 真</td><td>DNCL</td></tr>
+  <tr><td><code>二進で表示する(x)</code></td><td>x を 2 進表現で表示する（値は返さない）</td><td><code>二進で表示する(11)</code> → 1011 と表示</td><td>DNCL</td></tr>
+  <tr><td><code>二進(x)</code></td><td>0 以上の整数 x を 2 進数で表した文字列</td><td><code>二進(10)</code> → "1010"</td><td>拡張</td></tr>
 </table></div>
 <p>試験問題では、問題の中で独自の関数が説明されることがあります。その場合は次の「関数の定義」で同じ働きの関数を作ってから使ってください。</p>
 
-<h3 id="funcdef">関数の定義 <span class="ext">拡張</span></h3>
-<p>試験の表記には関数を定義する書き方がないため、このシミュレーター独自の書き方を用意しています。</p>
+<h3 id="funcdef">関数の定義</h3>
+<p>DNCL には関数を定義する書き方（<code>関数 〈関数名〉(〈引数列〉) を</code> 〜 <code>と定義する</code>）があります。DNCL2 の例示には関数を定義する書き方がないため、<code>:</code> と字下げを使う独自の書き方 <span class="ext">拡張</span> を用意しています。値を返す <code>〈値〉 を返す</code> はどちらの言語でもシミュレーターの拡張です。</p>
 <div class="cols">
   <div class="ex" data-mode="dncl2"><span class="tag">DNCL2</span><pre>関数 heikin(A):
 │ goukei = 0
@@ -396,16 +448,17 @@ nijou(12) を表示する</pre></div>
 <p>次の機能は試験の表記にはありませんが、練習用に追加しています。</p>
 <div class="tbl-wrap"><table class="t">
   <tr><th>機能</th><th>説明</th></tr>
-  <tr><td><code>入力()</code>、<code>外部からの入力</code></td><td>「入力」欄から 1 行読み込みます。数値として読める場合は数値になります。例：<code>x = 入力()</code>、<code>x ← 【外部からの入力】</code></td></tr>
+  <tr><td><code>入力()</code></td><td><code>【外部からの入力】</code> と同じく「入力」欄から 1 行読み込みます。数値として読める場合は数値になります。</td></tr>
   <tr><td><code>改行なしで表示する(…)</code><br><code>… を改行なしで表示する</code></td><td>最後に改行しない表示文</td></tr>
   <tr><td><code>表示する()</code>、<code>改行を表示する</code></td><td>改行だけを表示</td></tr>
   <tr><td><code>A の末尾に x を追加する</code></td><td>配列の最後に要素を 1 つ追加</td></tr>
   <tr><td><code>絶対値(x)</code> <code>平方根(x)</code></td><td>絶対値、平方根</td></tr>
   <tr><td><code>切り捨て(x)</code> <code>切り上げ(x)</code> <code>四捨五入(x)</code></td><td>整数への丸め（切り捨ては負の数では小さい方へ）</td></tr>
   <tr><td><code>文字列(x)</code> <code>数値(s)</code></td><td>数値と文字列の変換</td></tr>
-  <tr><td>関数の定義</td><td><a href="#funcdef">6. 関数</a> を参照</td></tr>
+  <tr><td>DNCL2 の関数の定義、値を返す <code>〜を返す</code></td><td><a href="#funcdef">6. 関数</a> を参照</td></tr>
+  <tr><td><code>二進(x)</code></td><td>2 進数の文字列を返す</td></tr>
   <tr><td>DNCL2 の後判定</td><td><code>繰り返す:</code> 〜 <code>… になるまで繰り返す</code></td></tr>
-  <tr><td>コメント</td><td><code>#</code> から行末までは無視されます</td></tr>
+  <tr><td>DNCL のコメント</td><td>DNCL2 と同じく <code>#</code> から行末までは無視されます</td></tr>
 </table></div>
 <div class="ex" data-mode="dncl2"><pre># 「入力」欄に数を書いてから実行する（空なら実行中に聞かれます）
 n = 入力()
@@ -419,7 +472,8 @@ n = 入力()
   <li><strong><code>整数(x)</code></strong>：0 の方向へ切り捨てます（<code>整数(-2.5)</code> → -2）。</li>
   <li><strong>小数</strong>：計算機の性質上の小さな誤差が出ないよう、表示は有効数字 12 桁に丸めます（<code>0.1 + 0.2</code> → 0.3）。</li>
   <li><strong>配列</strong>：まだない添字に代入すると配列が自動的に大きくなります。値を代入していない要素を読むとエラーになります（「すべての要素に〜を代入する」をした配列を除く）。存在しない配列の要素に代入すると、新しい配列が作られます。</li>
-  <li><strong>配列の代入</strong>：<code>B = A</code> とすると B と A は同じ配列を指します（B の要素を変えると A も変わります）。</li>
+  <li><strong>配列の代入</strong>：DNCL2 で <code>B = A</code> とすると、Python と同じように B と A は同じ配列を指します（B の要素を変えると A も変わります）。DNCL の <code>B ← A</code> は説明資料のとおり内容の置き換え（複製）です。</li>
+  <li><strong>表示する</strong>：値は間を空けずに連結します（例示の「カンマ区切りで文字列や数値を連結できる」による）。</li>
   <li><strong>文字列</strong>：<code>s[0]</code> で 1 文字取り出せます。<code>+</code> で連結でき、片方が数値でも連結になります。</li>
   <li><strong>条件</strong>：比較の結果は「真」「偽」です。表示すると <code>真</code>・<code>偽</code> と出ます。</li>
   <li><strong>大文字・小文字</strong>：変数名は大文字と小文字を区別します（<code>kingaku</code> と <code>Kingaku</code> は別の変数）。</li>

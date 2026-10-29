@@ -67,13 +67,22 @@
     return out.trim().replace(/。$/, '').trim();
   }
 
+  const LINE_NO_RE = /^\s*[(（]\s*[0-9０-９]+\s*[)）]([ \t　]*)/;
+
   function preprocess(src) {
     const raw = String(src).replace(/\r\n?/g, '\n').split('\n');
+    // 試験問題のような行番号「( 1 )」「(01)」を取り除く。行番号の後の空白は
+    // 行ごとに幅が違うことがあるので、全行に共通する分だけ取り除く
+    let common = Infinity;
+    for (const s of raw) {
+      const m = s.match(LINE_NO_RE);
+      if (m && s.slice(m[0].length).trim()) common = Math.min(common, m[1].length);
+    }
     const lines = [];
     raw.forEach((s, idx) => {
       const line = idx + 1;
-      // 試験問題のような行番号「(01)」を取り除く
-      const t = s.replace(/^\s*[(（]\s*[0-9０-９]+\s*[)）]/, '');
+      const m = s.match(LINE_NO_RE);
+      const t = m ? s.slice(m[0].length - m[1].length + Math.min(common, m[1].length)) : s;
       let indent = 0;
       let k = 0;
       for (; k < t.length; k++) {
@@ -177,7 +186,26 @@
       if (t) throw this.err(`式の後ろに余分な「${t.t === 'str' ? '"' + t.v + '"' : t.v}」があります`);
     }
 
-    parseExpr() { return this.parseOr(); }
+    parseExpr() { return this.mode === 'dncl' ? this.parseLogicDncl() : this.parseOr(); }
+
+    // DNCL の論理演算子（かつ・または・でない）には優先順位がなく、左から順に計算する
+    parseLogicDncl() {
+      let e = this.parseCmp();
+      for (;;) {
+        if (this.isWord('and', 'かつ')) {
+          this.p++;
+          e = { k: 'and', l: e, r: this.parseCmp() };
+        } else if (this.isWord('or', 'または')) {
+          this.p++;
+          e = { k: 'or', l: e, r: this.parseCmp() };
+        } else if (this.isWord('でない', 'not')) {
+          this.p++;
+          e = { k: 'not', e };
+        } else {
+          return e;
+        }
+      }
+    }
 
     parseOr() {
       let l = this.parseAnd();
@@ -588,21 +616,25 @@
       const line = L.line;
       let m;
 
-      if ((m = t.match(/^もし\s*(.+?)\s*ならば\s*(.+?)\s*を実行し\s*,?\s*そうでなければ\s*(.+?)\s*を実行する$/))) {
-        return {
-          type: 'if',
-          branches: [{ cond: parseExprText(m[1], line, mode), body: inline(m[2], line), line }],
-          elseBody: inline(m[3], line),
-          line,
-        };
-      }
-      if ((m = t.match(/^もし\s*(.+?)\s*ならば\s*(.+?)\s*を実行する$/))) {
-        return {
-          type: 'if',
-          branches: [{ cond: parseExprText(m[1], line, mode), body: inline(m[2], line), line }],
-          elseBody: null,
-          line,
-        };
+      if (/^もし/.test(t) && /を実行する$/.test(t)) {
+        // 1 行（または「を実行し，」で改行して続けた数行）で書いた条件分岐
+        const parts = t.replace(/\s*を実行する$/, '').split(/\s*を実行し\s*,\s*/);
+        const branches = [];
+        let elseBody = null;
+        parts.forEach((part, i) => {
+          let pm;
+          if (i === 0) pm = part.match(/^もし\s*(.+?)\s*ならば\s*(.+)$/);
+          else pm = part.match(/^そうでなくもし\s*(.+?)\s*ならば\s*(.+)$/);
+          if (pm) {
+            if (elseBody) throw new DnclError('「そうでなければ」の後に条件は続けられません', line);
+            branches.push({ cond: parseExprText(pm[1], line, mode), body: inline(pm[2], line), line });
+          } else if (i > 0 && i === parts.length - 1 && (pm = part.match(/^そうでなければ\s*(.+)$/))) {
+            elseBody = inline(pm[1], line);
+          } else {
+            throw new DnclError(`条件分岐の形が正しくありません（「${part}」）`, line);
+          }
+        });
+        return { type: 'if', branches, elseBody, line };
       }
       if ((m = t.match(/^もし\s*(.+?)\s*ならば$/))) {
         const branches = [];
@@ -657,6 +689,16 @@
         throw new DnclError(`「${t}」に対応する「もし」や繰り返しの始まりがありません`, line);
       }
       return asStatement(parseSimple(t, line, mode), line);
+    }
+
+    // 「…を実行し，」で行が終わり、次の行が「そうでなければ」「そうでなくもし」で
+    // 始まる場合は 1 行につなげる（改行位置で意味は変わらない）
+    for (let i = 0; i < lines.length - 1; i++) {
+      if (/を実行し\s*,$/.test(lines[i].text) && /^そうでな/.test(lines[i + 1].text)) {
+        lines[i] = { ...lines[i], text: lines[i].text + lines[i + 1].text };
+        lines.splice(i + 1, 1);
+        i--;
+      }
     }
 
     const body = [];
@@ -761,7 +803,29 @@
       },
     },
     '整数': { n: 1, fn([v], it) { return Math.trunc(needNum(it, v, '整数')); } },
-    '乱数': { n: 0, fn() { return Math.random(); } },
+    '乱数': {
+      fn(args, it) {
+        if (args.length === 0) return Math.random();
+        // DNCL の説明資料の例：乱数(m, n) は m 以上 n 以下の整数をランダムに返す
+        if (args.length === 2) {
+          const [a, b] = args.map(v => needNum(it, v, '乱数'));
+          if (!Number.isInteger(a) || !Number.isInteger(b) || a > b) {
+            throw it.err('乱数(m, n) の m と n は m ≦ n の整数にしてください');
+          }
+          return a + Math.floor(Math.random() * (b - a + 1));
+        }
+        throw it.err('乱数 の引数は 0 個（0 以上 1 未満の小数）か 2 個（m 以上 n 以下の整数）です');
+      },
+    },
+    '二乗': { n: 1, fn([v], it) { return needNum(it, v, '二乗') ** 2; } },
+    'べき乗': { n: 2, fn([a, b], it) { return needNum(it, a, 'べき乗') ** needNum(it, b, 'べき乗'); } },
+    '奇数': {
+      n: 1,
+      fn([v], it) {
+        needNum(it, v, '奇数');
+        return Number.isInteger(v) && Math.abs(v % 2) === 1;
+      },
+    },
     '二進': {
       n: 1,
       fn([v], it) {
@@ -935,8 +999,10 @@
           return null;
 
         case 'assign': {
-          const v = yield* this.ev(s.expr);
+          let v = yield* this.ev(s.expr);
           if (v === undefined) throw this.err('代入する値がありません');
+          // DNCL では配列の代入は「他の配列の内容に置き換える」（複製する）
+          if (this.prog.mode === 'dncl' && v instanceof Arr && s.expr.k !== 'arr') v = copyArr(v);
           yield* this.assign(s.target, v);
           return null;
         }
@@ -1212,6 +1278,10 @@
       return a.items.every((x, i) => eq(x, b.items[i]));
     }
     return a === b;
+  }
+
+  function copyArr(a) {
+    return new Arr(a.items.map(x => (x instanceof Arr ? copyArr(x) : x)), a.dflt);
   }
 
   function fillDeep(a, v) {
