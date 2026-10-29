@@ -18,8 +18,8 @@ function test(name, fn) {
   }
 }
 
-function run(src, mode, inputs) {
-  return DNCL.runAll(Array.isArray(src) ? src.join('\n') : src, mode, { inputs }).output;
+function run(src, mode, inputs, base) {
+  return DNCL.runAll(Array.isArray(src) ? src.join('\n') : src, mode, { inputs, base }).output;
 }
 
 function expectError(src, mode, pattern, line) {
@@ -38,7 +38,7 @@ function expectError(src, mode, pattern, line) {
 for (const mode of Object.keys(SAMPLES)) {
   for (const s of SAMPLES[mode]) {
     test(`sample ${mode}/${s.id}`, () => {
-      const out = run(s.code, mode, s.inputs);
+      const out = run(s.code, mode, s.inputs, s.base);
       if (s.expected !== undefined) assert.strictEqual(out, s.expected);
     });
   }
@@ -399,6 +399,81 @@ test('公式: DNCL 関数の定義', () => {
 });
 test('DNCL: 配列の代入は内容の複製', () => {
   assert.strictEqual(run('A ←{1, 2}\nB ←A\nB[0] ←9\nA と B を表示する', 'dncl'), '[1, 2][9, 2]\n');
+});
+
+// ---- 過去問のサンプルで使う機能 ----
+test('サンプル: DNCL2 はすべて行番号つき', () => {
+  for (const s of SAMPLES.dncl2) {
+    // 問題の図の外にある準備の行は先頭にまとめ、その後はコメントと
+    // 折り返しの続きの行を除いてすべて行番号で始まる
+    const start = s.code.findIndex(l => /^\(\s*\d+\s*\)/.test(l));
+    assert.ok(start >= 0, s.id);
+    for (const l of s.code.slice(start)) {
+      if (/^\s*#/.test(l) || /^\s/.test(l)) continue;
+      assert.match(l, /^\(\s*\d+\s*\)/, `${s.id}: ${l}`);
+    }
+  }
+});
+test('過去問: 令和7年度本試験 問1 図2 の入力', () => {
+  const s = SAMPLES.dncl2.find(x => x.id === 'r7h-1');
+  const it = DNCL.runAll(s.code.join('\n'), 'dncl2', { inputs: s.inputs, base: 1 }).interpreter;
+  const g = it.snapshot().globals;
+  const val = name => g.find(v => v.name === name).value;
+  assert.strictEqual(val('Iremono'), '[?, ?, 1]');
+  assert.strictEqual(val('Shurui'), '[?, ?, 2]');
+  assert.strictEqual(val('Keiryou'), '[?, ?, 717]');
+});
+test('過去問: 令和7年度本試験 問3 図5 の文字列入力', () => {
+  const s = SAMPLES.dncl2.find(x => x.id === 'r7h-3a');
+  for (const [name, num] of [['ペットボトル', 3], ['落ち葉', 7], ['可燃ごみ', 1]]) {
+    const it = DNCL.runAll(s.code.join('\n'), 'dncl2', { inputs: [name], base: 1 }).interpreter;
+    assert.strictEqual(it.snapshot().globals.find(v => v.name === 'Shurui').value, `[?, ?, ${num}]`);
+  }
+});
+test('過去問: 令和7年度追試験 問2 の後半（部員5名）', () => {
+  const s = SAMPLES.dncl2.find(x => x.id === 'r7t-2');
+  const code = s.code.join('\n').replace('Akibi = [5, 3, 4]', 'Akibi = [5, 6, 4, 4, 4]').replace('buinsu = 3', 'buinsu = 5');
+  assert.strictEqual(run(code, 'dncl2', [], 1), '次の工芸品の担当は部員3です。\n');
+});
+test('過去問: 令和8年度本試験 各クイズ集は各分野5問以内', () => {
+  const s = SAMPLES.dncl2.find(x => x.id === 'r8h-3');
+  const it = DNCL.runAll(s.code.join('\n'), 'dncl2', {}).interpreter;
+  const bunya = it.globals.get('Bunya').items;
+  const saiyou = it.globals.get('Saiyou').items;
+  assert.strictEqual(bunya.length, 193);
+  assert.deepStrictEqual(bunya.slice(0, 7), [2, 0, 2, 2, 1, 2, 0]);
+  for (let c = 1; c <= 4; c++) {
+    const cnt = [0, 0, 0, 0, 0, 0];
+    saiyou.forEach((v, i) => { if (v === c) cnt[bunya[i]]++; });
+    assert.ok(cnt.every(x => x <= 5), `クイズ集${c}: ${cnt}`);
+  }
+});
+test('添字が 1 から始まる配列', () => {
+  assert.strictEqual(run('A = [10, 20, 30]\nA[3] = A[3] + A[1]\n表示する(A, 要素数(A), A[3])', 'dncl2', [], 1), '[10, 20, 40]340\n');
+  assert.strictEqual(run('B のすべての値を 0 にする\nB[1] = 5\nC の末尾に 7 を追加する\n表示する(B, C, C[1])', 'dncl2', [], 1), '[5][7]7\n');
+  assert.strictEqual(run('s = "情報"\n表示する(s[1])', 'dncl2', [], 1), '情\n');
+  assert.throws(() => run('A = [1]\nx = A[0]', 'dncl2', [], 1), /1 以上の整数/);
+  assert.throws(() => run('A = [1]\nA[0] = 2', 'dncl2', [], 1), /1 以上の整数/);
+  assert.strictEqual(run('A ←{3, 4}\nA[1] と A[2] を表示する', 'dncl', [], 1), '34\n');
+});
+test('【整数を入力】と【文字列を入力】', () => {
+  assert.strictEqual(run('a =【整数を入力】\nb =【文字列を入力】\n表示する(a + 1, b + 1)', 'dncl2', ['41', '12']), '42121\n');
+  assert.throws(() => run('a =【整数を入力】', 'dncl2', ['abc']), /整数を入力してください/);
+  assert.throws(() => run('a =【整数を入力】', 'dncl2', ['1.5']), /整数を入力してください/);
+});
+test('括弧が閉じていない行は次の行に続く', () => {
+  assert.strictEqual(run([
+    '(01) A = [1, 2,',
+    '          3]',
+    '(02) i を 0 から 2 まで 1 ずつ増やしながら繰り返す:',
+    '(03) ｜ 表示する("a",',
+    '     ｜          A[i])',
+    '(04) ⎿ 表示する("-")',
+    '(05) 表示する(要素数(A))',
+  ], 'dncl2'), 'a1\n-\na2\n-\na3\n-\n3\n');
+});
+test('最大値と最小値', () => {
+  assert.strictEqual(run('表示する(最大値(1, 5), 最大値(2, 2), 最小値(4, -1, 3), 最大値([3, 9, 8]))', 'dncl2'), '52-19\n');
 });
 
 // ---- ステップ実行 ----

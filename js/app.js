@@ -12,6 +12,7 @@
   const modeEl = $('mode');
   const sampleEl = $('sample');
   const speedEl = $('speed');
+  const baseEl = $('base');
   const inputsEl = $('inputs');
   const btnRun = $('btn-run');
   const btnStep = $('btn-step');
@@ -48,10 +49,16 @@
   // 保存
   // ---------------------------------------------------------------
   function save() {
-    try { localStorage.setItem(STORE_KEY + mode, codeEl.value); } catch (e) { /* 保存できない環境 */ }
+    try {
+      localStorage.setItem(STORE_KEY + mode, codeEl.value);
+      localStorage.setItem(STORE_KEY + mode + '_base', baseEl.value);
+    } catch (e) { /* 保存できない環境 */ }
   }
   function load(m) {
     try { return localStorage.getItem(STORE_KEY + m); } catch (e) { return null; }
+  }
+  function loadBase(m) {
+    try { return localStorage.getItem(STORE_KEY + m + '_base') || '0'; } catch (e) { return '0'; }
   }
 
   // ---------------------------------------------------------------
@@ -172,13 +179,26 @@
     }
   }
 
+  const SAMPLE_GROUPS = [
+    ['exam', '共通テスト「情報Ⅰ」の過去問'],
+    ['official', '大学入試センターの資料の例'],
+    [undefined, '基本のサンプル'],
+  ];
+
   function renderSamples() {
     sampleEl.innerHTML = '<option value="">（選んでください）</option>';
-    for (const s of DNCL_SAMPLES[mode]) {
-      const o = document.createElement('option');
-      o.value = s.id;
-      o.textContent = s.title;
-      sampleEl.appendChild(o);
+    for (const [group, label] of SAMPLE_GROUPS) {
+      const list = DNCL_SAMPLES[mode].filter(s => s.group === group);
+      if (!list.length) continue;
+      const g = document.createElement('optgroup');
+      g.label = label;
+      for (const s of list) {
+        const o = document.createElement('option');
+        o.value = s.id;
+        o.textContent = s.title;
+        g.appendChild(o);
+      }
+      sampleEl.appendChild(g);
     }
   }
 
@@ -189,10 +209,11 @@
     updateGutter();
   }
 
-  function setMode(m, code) {
+  function setMode(m, code, base) {
     if (state !== 'idle') stop();
     mode = m === 'dncl' ? 'dncl' : 'dncl2';
     modeEl.value = mode;
+    baseEl.value = base !== undefined ? String(base) : (code !== undefined ? '0' : loadBase(mode));
     renderSymbols();
     renderSamples();
     const saved = code !== undefined ? code : load(mode);
@@ -212,11 +233,17 @@
     if (!s) return;
     if (state !== 'idle') stop();
     setCode(s.code.join('\n'));
+    baseEl.value = String(s.base || 0);
     if (s.inputs) {
       inputsEl.value = s.inputs.join('\n');
     }
     save();
+    outEl.textContent = '';
+    writeSys('サンプル「' + s.title + '」を読み込みました。', 'sys');
+    if (s.note) writeSys(s.note, 'sys');
   });
+
+  baseEl.addEventListener('change', save);
 
   // ---------------------------------------------------------------
   // 出力と変数
@@ -246,7 +273,7 @@
     outEl.scrollTop = outEl.scrollHeight;
   }
 
-  function readInput() {
+  function readInput(kind) {
     const lines = inputsEl.value.split('\n');
     // 末尾の空行は入力として扱わない
     while (lines.length && lines[lines.length - 1] === '') lines.pop();
@@ -257,7 +284,9 @@
     }
     flushOut();
     let v = null;
-    try { v = window.prompt('値を入力してください'); } catch (e) { v = null; }
+    const label = kind === '整数を入力' ? '整数を入力してください'
+      : kind === '文字列を入力' ? '文字列を入力してください' : '値を入力してください';
+    try { v = window.prompt(label); } catch (e) { v = null; }
     if (v !== null) writeSys('入力: ' + v, 'sys');
     return v;
   }
@@ -310,6 +339,7 @@
     btnStop.disabled = s === 'idle';
     btnRun.textContent = s === 'running' ? '❚❚ 一時停止' : (s === 'paused' ? '▶ 続ける' : '▶ 実行');
     modeEl.disabled = s !== 'idle';
+    baseEl.disabled = s !== 'idle';
   }
 
   function start() {
@@ -326,7 +356,7 @@
       showError(e);
       return false;
     }
-    interp = new DNCL.Interpreter(prog, { output: writeOut, input: readInput });
+    interp = new DNCL.Interpreter(prog, { output: writeOut, input: readInput, base: Number(baseEl.value) });
     gen = interp.run();
     renderVars();
     return true;
@@ -358,13 +388,20 @@
     setState('idle');
   }
 
+  // エディタの行番号に、プログラムに書かれた「(08)」のような行番号があれば添える
+  function lineLabel(line) {
+    const text = codeEl.value.split('\n')[line - 1] || '';
+    const m = text.match(/^\s*[(（]\s*([0-9０-９]+)\s*[)）]/);
+    return m ? `${line} 行目・(${m[1]})` : `${line} 行目`;
+  }
+
   function showError(e) {
     clearTimeout(timer);
     flushOut();
     const line = e && e.line;
     const msg = e && e.name === 'DnclError' ? e.message : '内部エラー: ' + (e && e.message);
-    writeSys(line ? `エラー（${line} 行目）: ${msg}` : `エラー: ${msg}`, 'err');
-    setStatus(line ? `${line} 行目でエラー` : 'エラー', 'error');
+    writeSys(line ? `エラー（${lineLabel(line)}）: ${msg}` : `エラー: ${msg}`, 'err');
+    setStatus(line ? `${lineLabel(line)}でエラー` : 'エラー', 'error');
     renderVars();
     setState('idle');
     if (line) {
@@ -401,7 +438,7 @@
       flushOut();
       renderVars();
       highlight(interp.line);
-      setStatus(`実行中… ${interp.line} 行目`);
+      setStatus(`実行中… ${lineLabel(interp.line)}`);
       timer = setTimeout(tick, delay);
     }
   }
@@ -413,7 +450,7 @@
       flushOut();
       renderVars();
       highlight(interp.line);
-      setStatus(`一時停止中（${interp.line} 行目の手前）`);
+      setStatus(`一時停止中（${lineLabel(interp.line)}の手前）`);
       return;
     }
     if (state === 'idle') {
@@ -435,7 +472,7 @@
     flushOut();
     renderVars();
     highlight(interp.line);
-    setStatus(`${interp.line} 行目を実行する手前（${interp.steps} ステップ目）`);
+    setStatus(`${lineLabel(interp.line)}を実行する手前（${interp.steps} ステップ目）`);
   }
 
   btnRun.addEventListener('click', runClicked);
@@ -454,8 +491,9 @@
     const params = new URLSearchParams(hash);
     const code = params.get('code');
     const m = params.get('mode');
+    const b = params.get('base');
     if (code === null && !m) return false;
-    setMode(m || 'dncl2', code === null ? undefined : code);
+    setMode(m || 'dncl2', code === null ? undefined : code, b === '1' ? 1 : (code === null ? undefined : 0));
     history.replaceState(null, '', location.pathname + location.search);
     return true;
   }
