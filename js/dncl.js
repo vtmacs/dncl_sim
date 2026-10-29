@@ -69,6 +69,17 @@
 
   const LINE_NO_RE = /^\s*[(（]\s*[0-9０-９]+\s*[)）]([ \t　]*)/;
 
+  function bracketDepth(text) {
+    let depth = 0;
+    let inStr = false;
+    for (const c of text) {
+      if (c === '"') inStr = !inStr;
+      else if (!inStr && '([{'.includes(c)) depth++;
+      else if (!inStr && ')]}'.includes(c)) depth--;
+    }
+    return depth;
+  }
+
   function preprocess(src) {
     const raw = String(src).replace(/\r\n?/g, '\n').split('\n');
     // 試験問題のような行番号「( 1 )」「(01)」を取り除く。行番号の後の空白は
@@ -94,7 +105,14 @@
         else break;
       }
       const text = normalizeText(t.slice(k), line);
-      if (text !== '') lines.push({ line, indent, text });
+      if (text === '') return;
+      // 括弧が閉じていない行は次の行に続く（試験問題で長い配列や表示文を折り返す書き方）
+      const prev = lines[lines.length - 1];
+      if (prev && bracketDepth(prev.text) > 0) {
+        prev.text += ' ' + text;
+        return;
+      }
+      lines.push({ line, indent, text });
     });
     return lines;
   }
@@ -725,10 +743,12 @@
   // ------------------------------------------------------------------
 
   class Arr {
-    constructor(items, dflt) {
+    constructor(items, dflt, base) {
       this.items = items;
       this.dflt = dflt; // 「すべての要素に〜を代入する」で設定される既定値
+      this.base = base || 0; // 添字の開始（0 または 1）。items[base] が最初の要素
     }
+    get size() { return Math.max(0, this.items.length - this.base); }
   }
 
   function fmtNum(v) {
@@ -750,12 +770,12 @@
   function fmtArr(a, limit) {
     const parts = [];
     const n = a.items.length;
-    for (let i = 0; i < n && i < limit; i++) {
+    for (let i = a.base; i < n && i - a.base < limit; i++) {
       const x = a.items[i];
       if (x === undefined) parts.push(a.dflt !== undefined ? fmtInner(a.dflt) : '?');
       else parts.push(fmtInner(x, limit));
     }
-    if (n > limit) parts.push(`…（全${n}個）`);
+    if (a.size > limit) parts.push(`…（全${a.size}個）`);
     return '[' + parts.join(', ') + ']';
   }
 
@@ -782,6 +802,14 @@
     return v;
   }
 
+  // 最大値(x, y, …) または 最大値(配列)
+  function minMax(args, it, fname, f) {
+    let vals = args;
+    if (args.length === 1 && args[0] instanceof Arr) vals = args[0].items.slice(args[0].base);
+    if (!vals.length) throw it.err(`${fname} には値を 1 つ以上渡してください`);
+    return f(...vals.map(v => needNum(it, v, fname)));
+  }
+
   function printProc(nl) {
     return {
       proc: true,
@@ -797,7 +825,7 @@
     '要素数': {
       n: 1,
       fn([v], it) {
-        if (v instanceof Arr) return v.items.length;
+        if (v instanceof Arr) return v.size;
         if (typeof v === 'string') return Array.from(v).length;
         throw it.err('要素数 には配列か文字列を渡してください');
       },
@@ -866,6 +894,9 @@
       },
     },
     '入力': { n: 0, fn(args, it) { return it.readInput(); } },
+    // 令和8年度 追試験「情報Ⅰ」第3問で問題文中に定義された関数
+    '最大値': { fn(args, it) { return minMax(args, it, '最大値', Math.max); } },
+    '最小値': { fn(args, it) { return minMax(args, it, '最小値', Math.min); } },
   };
 
   // ------------------------------------------------------------------
@@ -873,6 +904,8 @@
   // ------------------------------------------------------------------
 
   const MAX_DEPTH = 300;
+  // 【外部からの入力】【整数を入力】のように【】で囲んで書く入力
+  const INPUT_NAMES = ['外部からの入力', '整数を入力', '文字列を入力', '数値を入力'];
 
   class Interpreter {
     constructor(program, io) {
@@ -881,6 +914,8 @@
       this.funcs = program.funcs;
       this.out = io.output || (() => {});
       this.input = io.input || (() => null);
+      // 配列の添字の開始（問題文で「添字は 1 から始まる」とされる場合は 1）
+      this.base = io.base === 1 ? 1 : 0;
       this.globals = new Map();
       this.frames = [];
       this.line = 0;
@@ -896,11 +931,27 @@
       return this.err('内部エラー：' + (e && e.message));
     }
 
-    readInput() {
-      const s = this.input();
+    newArr(vals, dflt) {
+      return new Arr(this.base ? new Array(this.base).concat(vals) : vals, dflt, this.base);
+    }
+
+    // kind は「外部からの入力」「整数を入力」「文字列を入力」など
+    readInput(kind) {
+      kind = kind || '外部からの入力';
+      const s = this.input(kind);
       if (s === null || s === undefined) throw this.err('入力がありません');
       const t = String(s).trim();
-      return /^[-+]?(\d+\.?\d*|\.\d+)$/.test(t) ? Number(t) : String(s);
+      const isNum = /^[-+]?(\d+\.?\d*|\.\d+)$/.test(t);
+      if (kind === '文字列を入力') return String(s);
+      if (kind === '整数を入力') {
+        if (!isNum || !Number.isInteger(Number(t))) throw this.err(`整数を入力してください（「${s}」が入力されました）`);
+        return Number(t);
+      }
+      if (kind === '数値を入力') {
+        if (!isNum) throw this.err(`数値を入力してください（「${s}」が入力されました）`);
+        return Number(t);
+      }
+      return isNum ? Number(t) : String(s);
     }
 
     *run() {
@@ -918,7 +969,7 @@
     }
 
     get(name) {
-      if (name === '外部からの入力') return this.readInput();
+      if (INPUT_NAMES.includes(name)) return this.readInput(name);
       const v = this.tryGet(name);
       if (v !== undefined) return v;
       if (this.funcs[name] || BUILTINS[name]) {
@@ -935,8 +986,8 @@
     }
 
     toIndex(v) {
-      if (typeof v === 'number' && Number.isInteger(v) && v >= 0) return v;
-      throw this.err(`添字には 0 以上の整数を使います（${fmt(v)} が指定されました）`);
+      if (typeof v === 'number' && Number.isInteger(v) && v >= this.base) return v;
+      throw this.err(`添字には ${this.base} 以上の整数を使います（${fmt(v)} が指定されました。添字は ${this.base} から始まる設定です）`);
     }
 
     rootName(e) {
@@ -956,14 +1007,14 @@
       for (const e of idxNodes) idxs.push(this.toIndex(yield* this.ev(e)));
       let arr = this.tryGet(n.name);
       if (arr === undefined) {
-        arr = new Arr([], undefined);
+        arr = this.newArr([]);
         this.set(n.name, arr);
       }
       if (!(arr instanceof Arr)) throw this.err(`${n.name} は配列ではありません（${typeName(arr)}）`);
       for (let i = 0; i < idxs.length - 1; i++) {
         let next = arr.items[idxs[i]];
         if (next === undefined) {
-          next = new Arr([], arr.dflt);
+          next = this.newArr([], arr.dflt);
           arr.items[idxs[i]] = next;
         }
         if (!(next instanceof Arr)) throw this.err(`${n.name} の要素は配列ではないので、添字を重ねて使えません`);
@@ -1019,7 +1070,7 @@
           const v = yield* this.ev(s.expr);
           let a = this.tryGet(s.name);
           if (a === undefined) {
-            this.set(s.name, new Arr([], v));
+            this.set(s.name, this.newArr([], v));
           } else if (a instanceof Arr) {
             fillDeep(a, v);
           } else {
@@ -1032,10 +1083,11 @@
           const v = yield* this.ev(s.expr);
           let a = this.tryGet(s.name);
           if (a === undefined) {
-            a = new Arr([], undefined);
+            a = this.newArr([]);
             this.set(s.name, a);
           }
           if (!(a instanceof Arr)) throw this.err(`${s.name} は配列ではありません`);
+          if (a.items.length < a.base) a.items.length = a.base;
           a.items.push(v);
           return null;
         }
@@ -1137,7 +1189,7 @@
         case 'arr': {
           const items = [];
           for (const x of e.items) items.push(yield* this.ev(x));
-          return new Arr(items, undefined);
+          return this.newArr(items);
         }
         case 'idx': {
           const base = yield* this.ev(e.base);
@@ -1145,15 +1197,16 @@
           const name = this.rootName(e.base);
           if (typeof base === 'string') {
             const chars = Array.from(base);
-            if (i >= chars.length) throw this.err(`添字 ${i} は文字列の範囲外です（文字数は ${chars.length}）`);
-            return chars[i];
+            if (i - this.base >= chars.length) throw this.err(`添字 ${i} は文字列の範囲外です（文字数は ${chars.length}）`);
+            return chars[i - this.base];
           }
           if (!(base instanceof Arr)) throw this.err(`${name} は配列ではないので [ ] で要素を取り出せません`);
           const v = base.items[i];
           if (v !== undefined) return v;
           if (base.dflt !== undefined) return base.dflt;
           if (i >= base.items.length) {
-            throw this.err(`添字 ${i} は範囲外です（${name} の要素数は ${base.items.length}、添字は 0 から始まります）`);
+            const last = base.base + base.size - 1;
+            throw this.err(`添字 ${i} は範囲外です（${name} の要素数は ${base.size}、添字は ${base.base}〜${last}）`);
           }
           throw this.err(`${name} の添字 ${i} の要素にはまだ値が代入されていません`);
         }
@@ -1187,7 +1240,7 @@
       if (op === '!=') return !eq(a, b);
       if (op === '+') {
         if (typeof a === 'string' || typeof b === 'string') return fmt(a) + fmt(b);
-        if (a instanceof Arr && b instanceof Arr) return new Arr(a.items.concat(b.items), undefined);
+        if (a instanceof Arr && b instanceof Arr) return new Arr(a.items.concat(b.items.slice(b.base)), undefined, a.base);
       }
       if (['<', '>', '<=', '>='].includes(op)) {
         if (!((typeof a === 'number' && typeof b === 'number') || (typeof a === 'string' && typeof b === 'string'))) {
@@ -1274,19 +1327,22 @@
 
   function eq(a, b) {
     if (a instanceof Arr && b instanceof Arr) {
-      if (a.items.length !== b.items.length) return false;
-      return a.items.every((x, i) => eq(x, b.items[i]));
+      if (a.size !== b.size) return false;
+      for (let i = 0; i < a.size; i++) {
+        if (!eq(a.items[a.base + i], b.items[b.base + i])) return false;
+      }
+      return true;
     }
     return a === b;
   }
 
   function copyArr(a) {
-    return new Arr(a.items.map(x => (x instanceof Arr ? copyArr(x) : x)), a.dflt);
+    return new Arr(a.items.map(x => (x instanceof Arr ? copyArr(x) : x)), a.dflt, a.base);
   }
 
   function fillDeep(a, v) {
     a.dflt = v;
-    for (let i = 0; i < a.items.length; i++) {
+    for (let i = a.base; i < a.items.length; i++) {
       if (a.items[i] instanceof Arr) fillDeep(a.items[i], v);
       else a.items[i] = v;
     }
@@ -1301,6 +1357,7 @@
     const it = new Interpreter(prog, {
       output: s => { output += s; },
       input: () => (inputs.length ? inputs.shift() : null),
+      base: opts.base,
     });
     const max = opts.maxSteps || 1e7;
     const gen = it.run();

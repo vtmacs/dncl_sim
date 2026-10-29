@@ -100,6 +100,8 @@ select, .btn {
   padding: 5px 10px;
   min-height: 34px;
 }
+select { max-width: 100%; min-width: 0; text-overflow: ellipsis; }
+#sample { width: 20em; }
 .btn { cursor: pointer; white-space: nowrap; }
 .btn:hover:not(:disabled) { border-color: var(--accent); }
 .btn:disabled { opacity: 0.45; cursor: default; }
